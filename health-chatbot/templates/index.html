@@ -1,0 +1,410 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI Health Chatbot</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+</head>
+<body>
+    <!-- Language Selection -->
+    <div class="language-selector" id="language-selector">
+        <button class="lang-btn active" data-lang="en-IN">English</button>
+        <button class="lang-btn" data-lang="hi-IN">हिंदी</button>
+        <button class="lang-btn" data-lang="mr-IN">मराठी</button>
+        <button class="lang-btn" data-lang="kn-IN">ಕನ್ನಡ</button>
+    </div>
+
+    <!-- Chat Button -->
+    <button id="chat-button" class="chat-button">
+        <div class="button-content">
+            <i class="fas fa-comments"></i>
+            <span>Chat with Health Assistant</span>
+        </div>
+        <div class="button-background"></div>
+    </button>
+
+    <!-- Chat Container -->
+    <div class="chat-container" id="chat-container">
+        <div class="chat-header">
+            <div class="header-content">
+                <div class="header-status">
+                    <div class="status-indicator online"></div>
+                    <h1>AI Health Assistant</h1>
+                </div>
+                <p class="header-subtitle">Your Personal Health Guide</p>
+            </div>
+            <div class="header-controls">
+                <button id="toggle-voice" class="voice-button" title="Toggle Voice Output">
+                    <i class="fas fa-volume-up"></i>
+                </button>
+                <button id="close-button" class="close-button">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+        </div>
+        
+        <div class="chat-messages" id="chat-messages">
+            <div class="message bot-message with-avatar">
+                <div class="message-avatar">
+                    <i class="fas fa-robot"></i>
+                </div>
+                <div class="message-content">
+                    <div class="message-bubble">
+                        <div class="message-text">
+                            👋 Hello! I'm your AI health assistant, powered by advanced technology to help you with health-related questions. How can I assist you today?
+                        </div>
+                        <div class="message-time"></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="typing-indicator" id="typing-indicator">
+            <div class="typing-avatar">
+                <i class="fas fa-robot"></i>
+            </div>
+            <div class="typing-bubble">
+                <div class="typing-dots">
+                    <span></span>
+                    <span></span>
+                    <span></span>
+                </div>
+            </div>
+        </div>
+
+        <div class="chat-input-container">
+            <div class="input-wrapper">
+                <input type="text" id="user-input" placeholder="Type your health question here..." autocomplete="off">
+                <button id="voice-input-btn" class="voice-input-button" title="Voice Input">
+                    <i class="fas fa-microphone"></i>
+                </button>
+            </div>
+            <button id="send-button" disabled>
+                <i class="fas fa-paper-plane"></i>
+            </button>
+        </div>
+
+        <!-- Voice Recording Modal -->
+        <div id="voice-modal" class="voice-modal">
+            <div class="voice-modal-content">
+                <div class="recording-waves">
+                    <div class="wave-group">
+                        <div class="wave wave1"></div>
+                        <div class="wave wave2"></div>
+                        <div class="wave wave3"></div>
+                    </div>
+                </div>
+                <p id="recording-status">Listening...</p>
+                <p id="recording-language"></p>
+                <button id="stop-recording" class="stop-recording-btn">
+                    <i class="fas fa-stop"></i>
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const chatButton = document.getElementById('chat-button');
+        const chatContainer = document.getElementById('chat-container');
+        const closeButton = document.getElementById('close-button');
+        const chatMessages = document.getElementById('chat-messages');
+        const userInput = document.getElementById('user-input');
+        const sendButton = document.getElementById('send-button');
+        const typingIndicator = document.getElementById('typing-indicator');
+        const toggleVoiceButton = document.getElementById('toggle-voice');
+        const voiceInputBtn = document.getElementById('voice-input-btn');
+        const voiceModal = document.getElementById('voice-modal');
+        const stopRecordingBtn = document.getElementById('stop-recording');
+        const recordingStatus = document.getElementById('recording-status');
+        const recordingLanguage = document.getElementById('recording-language');
+        const languageButtons = document.querySelectorAll('.lang-btn');
+
+        // Speech recognition setup
+        let recognition = null;
+        let currentLanguage = 'en-IN';
+
+        // Initialize speech recognition
+        function initializeSpeechRecognition() {
+            if ('webkitSpeechRecognition' in window) {
+                recognition = new webkitSpeechRecognition();
+                recognition.continuous = false;
+                recognition.interimResults = true;
+                recognition.lang = currentLanguage;
+
+                recognition.onstart = () => {
+                    voiceModal.style.display = 'flex';
+                    recordingStatus.textContent = 'Listening...';
+                    recordingLanguage.textContent = `Selected Language: ${getLanguageName(currentLanguage)}`;
+                    voiceInputBtn.classList.add('recording');
+                };
+
+                recognition.onresult = (event) => {
+                    const transcript = Array.from(event.results)
+                        .map(result => result[0].transcript)
+                        .join('');
+                    
+                    userInput.value = transcript;
+                    recordingStatus.textContent = 'Processing...';
+                };
+
+                recognition.onend = () => {
+                    voiceModal.style.display = 'none';
+                    voiceInputBtn.classList.remove('recording');
+                    if (userInput.value.trim()) {
+                        sendButton.disabled = false;
+                        sendMessage();
+                    }
+                };
+
+                recognition.onerror = (event) => {
+                    console.error('Speech recognition error:', event.error);
+                    recordingStatus.textContent = 'Error. Please try again.';
+                    setTimeout(() => {
+                        voiceModal.style.display = 'none';
+                        voiceInputBtn.classList.remove('recording');
+                    }, 1500);
+                };
+            } else {
+                voiceInputBtn.style.display = 'none';
+                alert('Speech recognition is not supported in your browser.');
+            }
+        }
+
+        // Language selection handling
+        languageButtons.forEach(button => {
+            button.addEventListener('click', () => {
+                currentLanguage = button.dataset.lang;
+                languageButtons.forEach(btn => btn.classList.remove('active'));
+                button.classList.add('active');
+                
+                if (recognition) {
+                    recognition.lang = currentLanguage;
+                }
+            });
+        });
+
+        function getLanguageName(langCode) {
+            const languages = {
+                'en-IN': 'English',
+                'hi-IN': 'हिंदी (Hindi)',
+                'mr-IN': 'मराठी (Marathi)',
+                'kn-IN': 'ಕನ್ನಡ (Kannada)'
+            };
+            return languages[langCode] || langCode;
+        }
+
+        // Voice input button handling
+        voiceInputBtn.addEventListener('click', () => {
+            if (recognition) {
+                recognition.start();
+            } else {
+                initializeSpeechRecognition();
+                recognition.start();
+            }
+        });
+
+        stopRecordingBtn.addEventListener('click', () => {
+            if (recognition) {
+                recognition.stop();
+            }
+        });
+
+        // Initialize speech recognition when the page loads
+        initializeSpeechRecognition();
+
+        // Speech synthesis setup
+        const speechSynthesis = window.speechSynthesis;
+        let isVoiceEnabled = true;
+        let currentVoice = null;
+
+        // Get the voices and select appropriate voice
+        let voices = [];
+        function setVoices() {
+            voices = speechSynthesis.getVoices();
+            // Try to find a voice matching the current language
+            const preferredVoice = voices.find(voice => 
+                voice.lang.startsWith(currentLanguage)
+            ) || voices.find(voice => 
+                voice.lang.startsWith('en-')
+            ) || voices[0];
+            
+            if (preferredVoice) {
+                currentVoice = preferredVoice;
+            }
+        }
+
+        speechSynthesis.onvoiceschanged = setVoices;
+        setVoices();
+
+        // Toggle voice functionality
+        toggleVoiceButton.addEventListener('click', () => {
+            isVoiceEnabled = !isVoiceEnabled;
+            toggleVoiceButton.querySelector('i').className = 
+                isVoiceEnabled ? 'fas fa-volume-up' : 'fas fa-volume-mute';
+            
+            if (!isVoiceEnabled) {
+                speechSynthesis.cancel(); // Stop any ongoing speech
+            }
+        });
+
+        function speakText(text) {
+            if (!isVoiceEnabled) return;
+            
+            // Clean the text from emojis and special characters
+            const cleanText = text.replace(/[\u{1F600}-\u{1F64F}]/gu, '')
+                                .replace(/[\u{1F300}-\u{1F5FF}]/gu, '')
+                                .replace(/[\u{1F680}-\u{1F6FF}]/gu, '')
+                                .replace(/[\u{2600}-\u{26FF}]/gu, '')
+                                .replace(/[\u{2700}-\u{27BF}]/gu, '')
+                                .trim();
+
+            const utterance = new SpeechSynthesisUtterance(cleanText);
+            utterance.voice = currentVoice;
+            utterance.rate = 1;
+            utterance.pitch = 1;
+            utterance.volume = 1;
+            
+            speechSynthesis.speak(utterance);
+        }
+
+        // Initially hide the chat container and typing indicator
+        chatContainer.style.display = 'none';
+        typingIndicator.style.display = 'none';
+
+        // Enable/disable send button based on input
+        userInput.addEventListener('input', () => {
+            sendButton.disabled = !userInput.value.trim();
+        });
+
+        // Toggle chat container visibility
+        chatButton.addEventListener('click', () => {
+            chatContainer.style.display = 'flex';
+            chatButton.style.display = 'none';
+            userInput.focus();
+        });
+
+        // Close chat container
+        closeButton.addEventListener('click', () => {
+            chatContainer.style.display = 'none';
+            chatButton.style.display = 'flex';
+            speechSynthesis.cancel(); // Stop any ongoing speech
+        });
+
+        function formatTime() {
+            const now = new Date();
+            return now.toLocaleTimeString('en-US', { 
+                hour: 'numeric', 
+                minute: '2-digit',
+                hour12: true 
+            });
+        }
+
+        function showTypingIndicator() {
+            typingIndicator.style.display = 'flex';
+            chatMessages.scrollTop = chatMessages.scrollHeight;
+        }
+
+        function hideTypingIndicator() {
+            typingIndicator.style.display = 'none';
+        }
+
+        function addMessage(message, isUser) {
+            const messageDiv = document.createElement('div');
+            messageDiv.className = `message ${isUser ? 'user-message' : 'bot-message with-avatar'}`;
+            
+            let messageHTML = '';
+            
+            if (!isUser) {
+                messageHTML += `
+                    <div class="message-avatar">
+                        <i class="fas fa-robot"></i>
+                    </div>`;
+            }
+            
+            messageHTML += `
+                <div class="message-content">
+                    <div class="message-bubble">
+                        <div class="message-text">${message}</div>
+                        <div class="message-time">${formatTime()}</div>
+                    </div>
+                </div>`;
+
+            messageDiv.innerHTML = messageHTML;
+            chatMessages.appendChild(messageDiv);
+            chatMessages.scrollTop = chatMessages.scrollHeight;
+
+            // Add animation class after a small delay
+            setTimeout(() => {
+                messageDiv.classList.add('show');
+            }, 100);
+
+            // Automatically speak bot messages if voice is enabled
+            if (!isUser && isVoiceEnabled) {
+                speakText(message);
+            }
+        }
+
+        async function sendMessage() {
+            const message = userInput.value.trim();
+            if (!message) return;
+
+            // Stop any ongoing speech when sending a new message
+            speechSynthesis.cancel();
+
+            // Add user message
+            addMessage(message, true);
+            userInput.value = '';
+            sendButton.disabled = true;
+
+            // Show typing indicator
+            showTypingIndicator();
+
+            try {
+                const response = await fetch('/chat', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({ 
+                        message: message,
+                        language: currentLanguage // Send the current language preference
+                    })
+                });
+
+                const data = await response.json();
+                
+                // Hide typing indicator before showing response
+                hideTypingIndicator();
+                
+                if (data.status === 'success') {
+                    // Add some delay to make it feel more natural
+                    setTimeout(() => {
+                        addMessage(data.response, false);
+                    }, 500);
+                } else {
+                    const errorMessage = currentLanguage === 'hi-IN' 
+                        ? 'क्षमा करें, मुझे एक त्रुटि मिली। कृपया पुनः प्रयास करें।'
+                        : 'I apologize, but I encountered an error. Could you please rephrase your question?';
+                    addMessage(errorMessage, false);
+                }
+            } catch (error) {
+                hideTypingIndicator();
+                const connectionError = currentLanguage === 'hi-IN'
+                    ? 'क्षमा करें, कनेक्शन में समस्या है। कृपया कुछ देर बाद पुनः प्रयास करें।'
+                    : 'I apologize, but I\'m having trouble connecting. Please try again in a moment.';
+                addMessage(connectionError, false);
+            }
+        }
+
+        sendButton.addEventListener('click', sendMessage);
+        userInput.addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') {
+                sendMessage();
+            }
+        });
+    </script>
+</body>
+</html> 
